@@ -91,10 +91,13 @@ def wav2powspec(filename, n_fft=1024, hop_length=512, win_length = None, sample_
     # Input: filename, spectrogram params, signal crop duration
     # Output: spectrogram tensor and min/max value before normalization
     # -----------------------------------------------------------------------------
-    # load signal
-    sig, sr_orig = torchaudio.load(filename)
+    if type(filename)==str:
+        # load signal
+        sig, sr_orig = torchaudio.load(filename)
+    else: 
+        sig=filename
     # resample
-    sig=torchaudio.transforms.Resample(sr_orig,sample_rate)(sig)
+    sig=torchaudio.transforms.Resample(sample_rate,sample_rate)(sig)
     # cut or zero-pad to fixed length
     sig=cut_or_zeropad(sig,pad_dur*sample_rate)
     # get spectrogram

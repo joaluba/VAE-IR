@@ -6,7 +6,7 @@ import pandas as pd
 
 class DatasetRirs(Dataset):
 
-    def __init__(self,IrInfoFile,sr=16e3):
+    def __init__(self,IrInfoFile,sr=8e3):
         self.IrInfoFile=IrInfoFile
         self.sr=sr
         self.IrData = pd.read_csv(self.IrInfoFile,delimiter=',')
@@ -26,7 +26,7 @@ class DatasetRirs(Dataset):
         sig, minmax=helpers.my_normalize(sig,0,1)
         # store signal as input data point
         data_point=sig
-        assert data_point.shape==torch.Size([1,48000]), f"{data_point.shape=}"
+        assert data_point.shape==torch.Size([1,int(self.pad_dur*self.sr)]), f"{data_point.shape=}"
 
         # create label consisting of acoustic params 
         label={
@@ -43,10 +43,11 @@ class DatasetRirs(Dataset):
 if __name__ == "__main__":
 
     # instantiate data set
-    INFO_FILE = "/Users/joanna.luberadzka/Documents/VAE-IR/irstats_ARNIandBUT.csv"
-    SAMPLING_RATE=16e3
+    #INFO_FILE = "/Users/joanna.luberadzka/Documents/VAE-IR/irstats_ARNIandBUT_local.csv"
+    INFO_FILE = "/home/ubuntu/joanna/VAE-IR/irstats_ARNIandBUT_datura.csv"
+    SAMPLING_RATE=8e3
     # Create dataset object
-    dataset_test = DatasetRirs(INFO_FILE,SAMPLING_RATE,)
+    dataset_test = DatasetRirs(INFO_FILE,SAMPLING_RATE)
     print("Number of data points:" + str(len(dataset_test)))
     print("Dimensions of input data:" + str(dataset_test[20][0].shape))
     print("List of labels:" + str(dataset_test[20][1]))
