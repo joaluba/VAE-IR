@@ -71,8 +71,8 @@ def training(model, dataloader, valloader, trainparams, store_outputs):
                 x_orig, labels = data[0].to(device), data[1]
                 
                 # Standardize the inputs
-                # inputs_m, inputs_s = x_orig.mean(), x_orig.std()
-                # x_orig = (x_orig - inputs_m) / inputs_s
+                inputs_m, inputs_s = x_orig.mean(), x_orig.std()
+                x_orig = (x_orig - inputs_m) / inputs_s
 
                 # reconstruction (forward pass)
                 x_recons, mu, sigma = model(x_orig.to(device))
@@ -104,6 +104,17 @@ def training(model, dataloader, valloader, trainparams, store_outputs):
     if store_outputs:
         return outputs_evol, loss_evol
 
+# IR loss from some paper
+class IRLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self,h1,h2):
+        numer=torch.sum(h1*h2,axis=1,keepdim=True)
+        denom=torch.norm(h1, p='fro',dim=1,keepdim=True)*torch.norm(h2, p='fro',dim=1,keepdim=True)
+        loss=torch.sum(1-torch.pow(numer/denom,2))
+        return loss 
+
 if __name__ == "__main__":
 
     DEVICE=torch.device("cuda" if torch.cuda.is_available() else "mps")
@@ -130,12 +141,14 @@ if __name__ == "__main__":
     testset, valset = random_split(restset, [N_test, N_val])
 
     # create dataloaders
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=64, shuffle=True, num_workers=6,pin_memory=True)
-    valloader = torch.utils.data.DataLoader(valset, batch_size=64, shuffle=True, num_workers=6,pin_memory=True)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=64, shuffle=True, num_workers=6,pin_memory=True)
+    BATCH_SIZE=8
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=BATCH_SIZE, shuffle=True, num_workers=8,pin_memory=True)
+    valloader = torch.utils.data.DataLoader(valset, batch_size=BATCH_SIZE, shuffle=True, num_workers=8,pin_memory=True)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=BATCH_SIZE, shuffle=True, num_workers=8,pin_memory=True)
     
     # -- Model: --
     model=models.VAE_Lin(x_len=24000).to(DEVICE)
+    # model=models.Conv1D_VAE(x_len=24000,h_len=256,z_len=24).to(DEVICE)
     
     # -- Training: --
     LEARNRATE=1e-3
@@ -145,7 +158,7 @@ if __name__ == "__main__":
         "device": DEVICE,
         "learnrate":LEARNRATE,
         "optimizer": torch.optim.Adam(model.parameters(), LEARNRATE),
-        "criterion": nn.MSELoss()}
+        "criterion": IRLoss()}
 
     # training
     outputs_evol, loss_evol=training(model, trainloader, valloader, trainparams, 1)

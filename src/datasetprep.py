@@ -16,17 +16,23 @@ class DatasetRirs(Dataset):
         return len(self.IrData)
 
     def __getitem__(self,index):
-        # load signal
-        sig, sr_orig = torchaudio.load(self.IrData["filepath"][int(index)])
-        # resample
-        sig=torchaudio.transforms.Resample(sr_orig,self.sr)(sig)
-        # cut or zero-pad to fixed length
-        sig=helpers.cut_or_zeropad(sig,self.pad_dur*self.sr)
-        # normalize to values 0-1 
-        sig, minmax=helpers.my_normalize(sig,0,1)
-        # store signal as input data point
-        data_point=sig
-        assert data_point.shape==torch.Size([1,int(self.pad_dur*self.sr)]), f"{data_point.shape=}"
+
+        sig, S, minmax=helpers.wav2powspec(self.IrData["filepath"][int(index)], n_fft=1024, 
+        hop_length=512, win_length = None, sample_rate = self.sr, pad_dur=3)
+        data_point=S
+
+        # # load signal
+        # sig, sr_orig = torchaudio.load(self.IrData["filepath"][int(index)])
+        # # resample
+        # sig=torchaudio.transforms.Resample(sr_orig,self.sr)(sig)
+        # # cut or zero-pad to fixed length
+        # sig=helpers.cut_or_zeropad(sig,self.pad_dur*self.sr)
+        # # normalize by standard deviation
+        # sigma=torch.std(sig)
+        # sig=sig/sigma
+        # # store signal as input data point
+        # data_point=sig
+        # assert data_point.shape==torch.Size([1,int(self.pad_dur*self.sr)]), f"{data_point.shape=}"
 
         # create label consisting of acoustic params 
         label={

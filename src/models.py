@@ -73,25 +73,26 @@ import argparse
 #         return self.decoder(z), mu, logvar
 
 
+
 class Conv1D_VAE(nn.Module):
     def __init__(self,x_len=48000, h_len=256,z_len=24):
         super().__init__()
 
         self.conv_layer_1 = nn.Conv1d(1, 1024,3,2,1)
-        #self.norm_layer_1 = nn.BatchNorm1d(1024)
+        self.norm_layer_1 = nn.BatchNorm1d(1024)
         self.nl_layer_1 = nn.LeakyReLU()
 
         self.conv_layer_2 = nn.Conv1d(1024, 512,3,2,1)
-        # self.norm_layer_2 = nn.BatchNorm1d(512)
+        self.norm_layer_2 = nn.BatchNorm1d(512)
         self.nl_layer_2 = nn.LeakyReLU()
 
         self.conv_layer_3 = nn.Conv1d(512, 256,3,2,1)
-        # self.norm_layer_3 = nn.BatchNorm1d(256)
+        self.norm_layer_3 = nn.BatchNorm1d(256)
         self.nl_layer_3 = nn.LeakyReLU()
 
         self.conv_layer_4 =nn.Conv1d(256, h_len,int(x_len/8),1,0)
-        # self.norm_layer_4 = nn.BatchNorm1d(h_len)
-        self.nl_layer_4 = nn.Tanh()
+        self.norm_layer_4 = nn.BatchNorm1d(h_len)
+        self.nl_layer_4 =  nn.LeakyReLU()
 
         self.fc_mu = nn.Linear(h_len, z_len)
         self.fc_var = nn.Linear(h_len, z_len)
@@ -102,36 +103,48 @@ class Conv1D_VAE(nn.Module):
         self.deconv_norm_layer_1 = nn.BatchNorm1d(256)
         self.deconv_nl_layer_1 = nn.LeakyReLU()
 
-        self.deconv_layer_2 = nn.ConvTranspose1d(256, 512, 3,2,1, output_padding=(0,1))
+        self.deconv_layer_2 = nn.ConvTranspose1d(256, 512, 3,2,1, output_padding=1)
         self.deconv_norm_layer_2 = nn.BatchNorm1d(512)
         self.deconv_nl_layer_2 = nn.LeakyReLU()
 
-        self.deconv_layer_3 = nn.ConvTranspose1d(512, 1024, 3,2,1, output_padding=(0,1))
+        self.deconv_layer_3 = nn.ConvTranspose1d(512, 1024, 3,2,1, output_padding=1)
         self.deconv_norm_layer_3 = nn.BatchNorm1d(1024)
         self.deconv_nl_layer_3 = nn.LeakyReLU()
 
-        self.deconv_layer_4 = nn.ConvTranspose1d(1024, 1, 3,2,1,output_padding=(0,1))
-        self.deconv_nl_layer_4 = nn.Tanh()
+        self.deconv_layer_4 = nn.ConvTranspose1d(1024, 1, 3,2,1,output_padding=1)
+        # no activation after last layer - linear 
+    
+    def myflatten(self,x):
+        x_dims=x.shape
+        n_batches=x_dims[0]
+        unflat_dims=x_dims[1:]
+        x=x.view(n_batches, -1)
+        return x, unflat_dims
+        
+    def myunflatten(self,x,unflat_dims):
+        dim_final_unflat= tuple([x.size(0)])+tuple(unflat_dims)
+        x=x.view(dim_final_unflat)
+        return x
 
     def encode(self, x):
 
         x = self.conv_layer_1(x)
-        #x = self.norm_layer_1(x)
+        x = self.norm_layer_1(x)
         x = self.nl_layer_1(x)
 
         x = self.conv_layer_2(x)
-        #x = self.norm_layer_2(x)
+        x = self.norm_layer_2(x)
         x = self.nl_layer_2(x)
 
         x = self.conv_layer_3(x)
-        #x = self.norm_layer_3(x)
+        x = self.norm_layer_3(x)
         x = self.nl_layer_3(x)
 
         x = self.conv_layer_4(x)
-        #x = self.norm_layer_4(x)
+        x = self.norm_layer_4(x)
         x = self.nl_layer_4(x)
         
-        x=x.flatten(1)
+        x, self.flatdims=self.myflatten(x)
 
         mu = self.fc_mu(x)
         var = self.fc_var(x)
@@ -147,22 +160,20 @@ class Conv1D_VAE(nn.Module):
 
     def decode(self, x):
         x = self.decoder_input(x)
-        x = x.unflatten(1,(256,1))
+        x = self.myunflatten(x,unflat_dims=self.flatdims)
         x = self.deconv_layer_1(x)
-        #x = self.deconv_norm_layer_1(x)
+        x = self.deconv_norm_layer_1(x)
         x = self.deconv_nl_layer_1(x)
 
         x = self.deconv_layer_2(x)
-       # x = self.deconv_norm_layer_2(x)
+        x = self.deconv_norm_layer_2(x)
         x = self.deconv_nl_layer_2(x)
 
         x = self.deconv_layer_3(x)
-        #x = self.deconv_norm_layer_3(x)
+        x = self.deconv_norm_layer_3(x)
         x = self.deconv_nl_layer_3(x)
 
         x = self.deconv_layer_4(x)
-        # x = self.deconv_norm_layer_4(x)
-        x = self.deconv_nl_layer_4(x)
         return x
 
     def forward(self, x):
@@ -197,7 +208,7 @@ class VAE_Lin(nn.Module):
             nn.Linear(1200,12000),
             nn.ReLU(),
             nn.Linear(12000,x_len),
-            nn.Tanh() # because the values of the (normalized) input are either 0 or 1 
+            # No activation at the last layer because the standardized waveforms at the input are appnormally distributed (-1,1) 
         )
     def reparameterize(self, mu, sigma):
         eps = torch.randn_like(sigma)
@@ -228,16 +239,16 @@ class VAE_Lin(nn.Module):
 # check if the model definition is correct
 if __name__ == "__main__":
     
-    x=torch.randn(1,24000)
+    x=torch.randn(1,1,24000)
 
-    # model1=VAE_Lin(x_len=24000,h_len=256,z_len=24)
-    # model1.to("cpu")
-    # summary(model1,(1,24000), device="cpu")
-    # model1.eval()
-    # x_recon, mu, sigma=model1(x)
-    # print(x_recon.shape)
-    # print(mu.shape)
-    # print(sigma.shape)
+    model1=VAE_Lin(x_len=24000,h_len=256,z_len=24)
+    model1.to("cpu")
+    summary(model1,(1,24000), device="cpu")
+    model1.eval()
+    x_recon, mu, sigma=model1(x)
+    print(x_recon.shape)
+    print(mu.shape)
+    print(sigma.shape)
 
 
     model2=Conv1D_VAE(x_len=24000,h_len=256,z_len=24)
