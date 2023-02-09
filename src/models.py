@@ -6,7 +6,7 @@ from tqdm import tqdm
 import numpy as np
 from torch.utils.data import DataLoader, random_split
 # import torchdataset_prep as dsprep
-from torchsummary import summary
+import torchsummary 
 import argparse
 
 #  ------------------- MODEL DEFINITIONS --------------------
@@ -77,8 +77,8 @@ import argparse
 class Conv1D_VAE(nn.Module):
     def __init__(self,x_len=48000, h_len=256,z_len=24):
         super().__init__()
-
-        self.conv_layer_1 = nn.Conv1d(1, 1024,3,2,1)
+        self.is_variational=True
+        self.conv_layer_1 = nn.Conv1d(1,1024,3,2,1)
         self.norm_layer_1 = nn.BatchNorm1d(1024)
         self.nl_layer_1 = nn.LeakyReLU()
 
@@ -188,6 +188,7 @@ class VAE_Lin(nn.Module):
 # It expects waveform as input
     def __init__(self, x_len=48000, h_len=256,z_len=24):
         super().__init__() 
+        self.is_variational=True
         # ------- Encoder elements: --------
         # q(z|x) - given data, what is the most likely hidden state?
         self.x2h=nn.Sequential(
@@ -236,36 +237,64 @@ class VAE_Lin(nn.Module):
         return x_recon, mu, sigma 
 
 
+class AutoencoderConv(nn.Module):
+    def __init__(self,z_len=24):
+        super().__init__()
+        self.is_variational=False
+        self.encoder=nn.Sequential(
+            nn.Conv2d(1,16,3,2,1), 
+            nn.ReLU(),
+            nn.Conv2d(16,32,3,2,1),
+            nn.ReLU(),
+            nn.Conv2d(32,z_len,(129,47),1,0) 
+        )
+        self.decoder=nn.Sequential(
+            nn.ConvTranspose2d(z_len,32,(129,47),1,0), 
+            nn.ReLU(),
+            nn.ConvTranspose2d(32,16,3,2,1,output_padding=(0,1)),
+            nn.ReLU(),
+            nn.ConvTranspose2d(16,1,3,2,1,output_padding=(0,1)),
+            nn.Sigmoid() # because the values of the (normalized) input are either 0 or 1 
+        )
+
+    def forward(self,x):
+        x_encoded=self.encoder(x)
+        x_decoded=self.decoder(x_encoded)
+        return x_decoded, x_encoded
+
+
+
 # check if the model definition is correct
 if __name__ == "__main__":
     
-    x=torch.randn(1,1,24000)
+    # x_wave=torch.randn(1,1,24000)
 
-    model1=VAE_Lin(x_len=24000,h_len=256,z_len=24)
-    model1.to("cpu")
-    summary(model1,(1,24000), device="cpu")
-    model1.eval()
-    x_recon, mu, sigma=model1(x)
-    print(x_recon.shape)
-    print(mu.shape)
-    print(sigma.shape)
-
-
-    model2=Conv1D_VAE(x_len=24000,h_len=256,z_len=24)
-    model2.to("cpu")
-    model2.eval()
-    summary(model2,(1,24000),device="cpu")
-    x_recon, mu, sigma=model2(x)
-    print(x_recon.shape)
-    print(mu.shape)
-    print(sigma.shape)
-
-    
-    # model3=VAE(x_dim=24000,h_dim=256,z_dim=24)
-    # model3.to("cpu")
-    # model3.eval()
-    # summary(model3,(1,24000),device="cpu")
-    # x_recon, mu, sigma=model3(x)
+    # model1=VAE_Lin(x_len=24000,h_len=256,z_len=24)
+    # model1.to("cpu")
+    # summary(model1,input_size = (1, 24000), batch_size = -1, device="cpu")# torch summary expects 2 dim input for MLP
+    # model1.eval()
+    # x_recon, mu, sigma=model1(x_wave)
     # print(x_recon.shape)
     # print(mu.shape)
     # print(sigma.shape)
+
+    # x_wave=torch.randn(1,1,24000)
+    # model2=Conv1D_VAE(x_len=24000,h_len=256,z_len=24)
+    # model2.to("cpu")
+    # model2.eval()
+    # summary(model2,input_size = (1, 24000), batch_size = -1,device="cpu")# torch summary expects 2 dim input for 1d conv
+    # x_recon, mu, sigma=model2(x_wave)
+    # print(x_recon.shape)
+    # print(mu.shape)
+    # print(sigma.shape)
+
+    x_spec=torch.randn(1,513,188)
+    model3=AutoencoderConv(z_len=24)
+    model3.to("cpu")
+    model3.eval()
+    t=torchsummary.summary(model3,input_size = (1, 513, 188), batch_size = -1,device="cpu")# torch summary expects 3 dim input for 2d conv
+    x_recon, emb =model3(x_spec)
+    print(x_recon.shape)
+    print(emb.shape)
+
+    

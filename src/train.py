@@ -40,14 +40,23 @@ def training(model, dataloader, valloader, trainparams, store_outputs):
             inputs_m, inputs_s = x_orig.mean(), x_orig.std()
             x_orig = (x_orig - inputs_m) / inputs_s
 
-            # reconstruction (forward pass)
-            x_recons, mu, sigma = model(x_orig.to(device))
-            # reconstruction loss 
-            recon_loss = criterion(x_orig, x_recons)
-            # KL-divergence - measure of similarity between distributions
-            kl_div=-torch.sum(1+torch.log(sigma.pow(2))- mu.pow(2)-sigma.pow(2))
-            # total loss
-            loss=recon_loss+kl_div
+            if model.is_variational:
+                # reconstruction (forward pass)
+                x_recons, mu, sigma = model(x_orig.to(device))
+                # reconstruction loss 
+                recon_loss = criterion(x_orig, x_recons)
+                # KL-divergence - measure of similarity between distributions
+                kl_div=-torch.sum(1+torch.log(sigma.pow(2))- mu.pow(2)-sigma.pow(2))
+                # total loss
+                loss=recon_loss+kl_div
+            else:
+                # reconstruction (forward pass)
+                x_recons, mu= model(x_orig.to(device))
+                # reconstruction loss 
+                recon_loss = criterion(x_orig, x_recons)
+                # total loss
+                loss=recon_loss
+
             # empty gradient
             optimizer.zero_grad()
             # compute gradients 
@@ -59,29 +68,37 @@ def training(model, dataloader, valloader, trainparams, store_outputs):
 
         # If needed - store last batch of the epoch
         if store_outputs:
-            outputs_evol.append((epoch,x_orig.float(),x_recons.float(),labels))
+            outputs_evol.append((epoch,x_orig.cpu().detach().numpy(),x_recons.cpu().detach().numpy(),labels))
 
         # Validation loop for this epoch: 
         model.eval() 
         with torch.no_grad():
             val_loss=0
             for j, data in tqdm(enumerate(valloader)):
-                
+
                 # Get the input features and target labels, and put them on the GPU
                 x_orig, labels = data[0].to(device), data[1]
-                
                 # Standardize the inputs
                 inputs_m, inputs_s = x_orig.mean(), x_orig.std()
                 x_orig = (x_orig - inputs_m) / inputs_s
-
-                # reconstruction (forward pass)
-                x_recons, mu, sigma = model(x_orig.to(device))
-                # reconstruction loss 
-                recon_loss = criterion(x_orig, x_recons)
-                # KL-divergence - measure of similarity between distributions
-                kl_div=-torch.sum(1+torch.log(sigma.pow(2))- mu.pow(2)-sigma.pow(2))
-                # total loss
-                loss=recon_loss+kl_div
+                
+                if model.is_variational:
+                    # reconstruction (forward pass)
+                    x_recons, mu, sigma = model(x_orig.to(device))
+                    # reconstruction loss 
+                    recon_loss = criterion(x_orig, x_recons)
+                    # KL-divergence - measure of similarity between distributions
+                    kl_div=-torch.sum(1+torch.log(sigma.pow(2))- mu.pow(2)-sigma.pow(2))
+                    # total loss
+                    loss=recon_loss+kl_div
+                else:
+                    # reconstruction (forward pass)
+                    x_recons, mu= model(x_orig.to(device))
+                    # reconstruction loss 
+                    recon_loss = criterion(x_orig, x_recons)
+                    # total loss
+                    loss=recon_loss
+          
                 # compute loss for the current batch
                 val_loss += loss.item()
         
@@ -130,10 +147,10 @@ if __name__ == "__main__":
 
     # Create dataset object
     SAMPLING_RATE=8e3
-    dataset = dsprep.DatasetRirs(INFO_FILE,SAMPLING_RATE)
+    dataset = dsprep.DatasetRirs(INFO_FILE,SAMPLING_RATE,"powspec")
 
     # split dataset into training set, test set and validation set
-    N_train = round(len(dataset) * 0.8)
+    N_train = round(len(dataset) * 0.1)
     N_rest = len(dataset) - N_train
     trainset, restset = random_split(dataset, [N_train, N_rest])
     N_test = round(len(restset) * 0.5)
@@ -141,13 +158,14 @@ if __name__ == "__main__":
     testset, valset = random_split(restset, [N_test, N_val])
 
     # create dataloaders
-    BATCH_SIZE=8
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=BATCH_SIZE, shuffle=True, num_workers=8,pin_memory=True)
-    valloader = torch.utils.data.DataLoader(valset, batch_size=BATCH_SIZE, shuffle=True, num_workers=8,pin_memory=True)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=BATCH_SIZE, shuffle=True, num_workers=8,pin_memory=True)
+    BATCH_SIZE=16
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=BATCH_SIZE, shuffle=True, num_workers=6,pin_memory=True)
+    valloader = torch.utils.data.DataLoader(valset, batch_size=BATCH_SIZE, shuffle=True, num_workers=6,pin_memory=True)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=BATCH_SIZE, shuffle=True, num_workers=6,pin_memory=True)
     
     # -- Model: --
-    model=models.VAE_Lin(x_len=24000).to(DEVICE)
+    model=models.AutoencoderConv(z_len=24).to(DEVICE)
+    # model=models.VAE_Lin(x_len=24000).to(DEVICE)
     # model=models.Conv1D_VAE(x_len=24000,h_len=256,z_len=24).to(DEVICE)
     
     # -- Training: --
@@ -158,7 +176,7 @@ if __name__ == "__main__":
         "device": DEVICE,
         "learnrate":LEARNRATE,
         "optimizer": torch.optim.Adam(model.parameters(), LEARNRATE),
-        "criterion": IRLoss()}
+        "criterion": nn.MSELoss()}
 
     # training
     outputs_evol, loss_evol=training(model, trainloader, valloader, trainparams, 1)

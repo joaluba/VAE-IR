@@ -24,7 +24,7 @@ def cut_or_zeropad(sig_in, len_smpl):
         sig_out = torch.zeros(1, int(len_smpl))
         sig_out[0,:sig_in.shape[1]] = sig_in
     else:
-        sig_out=sig_in[0,:len_smpl]
+        sig_out=sig_in[0,:int(len_smpl)]
     return sig_out
 
 def set_level(sig_in,L_des):
@@ -86,18 +86,15 @@ def plot_datapoint(data,label):
     str_ti="Spoken digit "+str(label)+ ", DIM=" +str(data.shape[1])+"x"+str(data.shape[2])+"="+str(data.shape[1]*data.shape[2])
     plot_spectrogram(data, title=str_ti, ylabel="freq_bin")
 
-def wav2powspec(filename, n_fft=1024, hop_length=512, win_length = None, sample_rate = 22050, pad_dur=1):
+def wav2powspec(filename, n_fft=1024, hop_length=128, win_length = None, sample_rate = 8000, pad_dur=1):
     # Function to compute a normalized power spectrogram of a given sound file
     # Input: filename, spectrogram params, signal crop duration
     # Output: spectrogram tensor and min/max value before normalization
     # -----------------------------------------------------------------------------
-    if type(filename)==str:
-        # load signal
-        sig, sr_orig = torchaudio.load(filename)
-    else: 
-        sig=filename
+    # load signal
+    sig, sr_orig = torchaudio.load(filename)
     # resample
-    sig=torchaudio.transforms.Resample(sample_rate,sample_rate)(sig)
+    sig=torchaudio.transforms.Resample(sr_orig,sample_rate)(sig)
     # cut or zero-pad to fixed length
     sig=cut_or_zeropad(sig,pad_dur*sample_rate)
     # get spectrogram
@@ -108,8 +105,8 @@ def wav2powspec(filename, n_fft=1024, hop_length=512, win_length = None, sample_
     max_spec=torch.max(S)
     S=(S-min_spec)/(max_spec-min_spec)
     minmax = {
-        "min": min_spec,    
-        "max": max_spec
+        "min": min_spec.numpy(),    
+        "max": max_spec.numpy()
         }
 
     sig=torch.squeeze(sig)
