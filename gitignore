@@ -12,7 +12,7 @@ Thumbs.db
 
 # Compiled Python files
 *.pyc
-src/__pycache__/*.pyc
+src/__pycache__/.cpython-38.pyc
 
 # Compiled C++ files
 *.out
