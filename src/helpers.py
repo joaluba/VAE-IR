@@ -6,6 +6,14 @@ from matplotlib import pyplot as plt
 import librosa
 import pyrato as ra
 
+
+def apply_hann_flanks(sig,flanksize,fs):
+    L=flanksize*fs # flanksize in [s] * fs= lenght of the flank in samples
+    hann= torch.tensor([0.5 * (1 - np.cos(2 * np.pi * idx / (L - 1))) for idx in range(int(L))])
+    sig[:,0:int(hann.shape[0]/2)]*=hann[0:int(hann.shape[0]/2)]
+    sig[:,-int(hann.shape[0]/2):]*=hann[-int(hann.shape[0]/2):]
+    return sig
+
 def get_rt30(waveform, samplerate):
     ir_proc,_,_ = ra.preprocess_rir(waveform)
     edc = ra.energy_decay_curve_chu(
@@ -22,9 +30,27 @@ def get_rt30(waveform, samplerate):
 def cut_or_zeropad(sig_in, len_smpl):
     if sig_in.shape[1]<len_smpl:
         sig_out = torch.zeros(1, int(len_smpl))
-        sig_out[0,:sig_in.shape[1]] = sig_in
+        sig_out[:,:sig_in.shape[1]] = sig_in
     else:
-        sig_out=sig_in[0,:int(len_smpl)]
+        sig_out=sig_in[:,:int(len_smpl)]
+    return sig_out
+
+def cut_or_zeropad_random(sig_in, len_smpl):
+    # if signal shorter than desired lenght
+    # pad zeros at the beginning or end
+    if sig_in.shape[1]<len_smpl:
+        sig_out = torch.zeros(1, int(len_smpl))
+        pad_location = np.random.choice(['beginning', 'end'])
+        if pad_location=="end":
+            sig_out[:,:sig_in.shape[1]] = sig_in
+        else:
+            sig_out[:,-sig_in.shape[1]:] = sig_in
+
+    # if signal longer than desired lenght
+    # choose random excerpt
+    else:
+        rand_start_idx=np.random.randint(0, sig_in.shape[1] - len_smpl)
+        sig_out=sig_in[:,rand_start_idx:rand_start_idx+len_smpl]
     return sig_out
 
 def set_level(sig_in,L_des):
@@ -51,12 +77,17 @@ def my_normalize(sig_in,a,b):
         }
     return sig_out, minmax
 
-def standardize(sig_in):
-    # normalize to [0, 1]
+def standardize_std(sig_in):
     mu = torch.mean(sig_in)
     sigma = torch.std(sig_in)
     sig_out=(sig_in-mu)/sigma
     return sig_out
+
+def standardize_max_abs(signal):
+    max_abs_value = torch.max(torch.abs(signal))
+    standardized_signal = signal / max_abs_value
+    standardized_signal -= torch.mean(standardized_signal)
+    return standardized_signal
 
 def add_noise(sig_in,snr):
     sig_in=sig_in.numpy()
