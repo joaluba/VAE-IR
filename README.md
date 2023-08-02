@@ -1,3 +1,23 @@
+-------------------------------- PHASE 2: --------------------------------
+
+The next quite natural extension of the PHASE 1 is to try to estimate the impulse response from the reverberant signal. 
+
+Motivation: In VR/XR it might help to change the room acoustic properties of sound recorded in one space, so that it sounds as if it came from another space. This problem can be devided into two sub-tasks where the first one is to de-reverberate a signal and the second one is to convolve the de-reverberated signal with a new room impulse response to obtain a perceptually different space. However, the desired room impulse response is usually not explicitly given, so a part of the problem is to estimate a room impulse response from a reverberant signal recorded in a target acoustic space. 
+
+Task: Given a mono, reverberant signal, estimate the room impulse response. 
+
+Approach: Use deep learning to solve that problem. Use encoder-decoder architecture with the waveform at the input and room impulse response at the output. 
+
+Data: Speech convolved with various impulse responses. 
+
+TODOS: 
+- Add synthetic IRs to the list of available IRS
+- Define architecture(s)
+- Training 
+
+
+-------------------------------- PHASE 1 (last commit Feb 28, 2023): --------------------------------
+
 In this repository, I made the first attempts to learn the embeddings of impulse responses. 
 I used 2 impulse response databases:
 
