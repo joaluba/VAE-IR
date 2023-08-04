@@ -143,6 +143,19 @@ def wav2powspec(filename, n_fft=1024, hop_length=128, win_length = None, sample_
     sig=torch.squeeze(sig)
     return sig, S, minmax
 
+def compute_cnn1d_out(L,ch_in,ch_out,kernel,stride,pad):
+    I=np.array([1,L,1,ch_in])
+    K=np.array([ch_out,kernel,1,ch_in])
+    # dimensions of matrices I & K:
+    # 0 - nr of instances (channels)
+    # 1 - height
+    # 2 - width
+    # 3 - depth
+
+    length=np.floor((I[1]-K[1]+2*pad)/stride)+1
+    depth=ch_out
+    return length,depth
+
 def compute_cnn_out(I,K,pad,stride):
     # dimensions of matrices I & K:
     # 0 - nr of instances (channels)
