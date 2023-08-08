@@ -37,7 +37,7 @@ class ResBlock1d(nn.Module):
         return x
 
 class sig2ir_decoder(nn.Module):
-    def __init__(self, x_len=16000*3, z_len=512, N_layers=10):
+    def __init__(self, x_len=16000*3, z_len=512, N_layers=9):
         super().__init__() 
 
         # internal parameters of the network:
@@ -53,14 +53,19 @@ class sig2ir_decoder(nn.Module):
             block_channels*=2
             # compute heigth of the ouput (width=1,depth=block_channels)
             x_len=np.floor((x_len-kernel_size+2*padding)/stride)+1 
+
         self.conv_layers = nn.Sequential(*conv_layers)
+
 
         # adaptive pooling layer to flatten and aggregate information
         self.aggregate = nn.AdaptiveAvgPool1d(1)
         #self.aggregate = nn.Conv1d(block_channels, z_len, kernel_size=int(x_len), stride=1, padding=0)
     
         # final mlp layers
-        self.mlp = nn.Linear(z_len, int(z_len/2))
+        self.mlp = nn.Sequential(nn.Linear(block_channels, block_channels),
+                                 nn.Linear(block_channels,int(block_channels/2)),
+                                 nn.Linear(int(block_channels/2),z_len))
+        
 
 
     def forward(self, x):
@@ -68,8 +73,9 @@ class sig2ir_decoder(nn.Module):
         x = self.conv_layers(x)
         # Aggregate info & flatten:
         x = self.aggregate(x)
-        # # Dense layers after aggregation:
-        # x = self.mlp(x)
+        x = x.view([x.shape[0],1,-1]) 
+        # Dense layers after aggregation:
+        x = self.mlp(x)
         return x
     
 
@@ -77,14 +83,16 @@ class sig2ir_decoder(nn.Module):
 if __name__ == "__main__":
     
     # example input tensor
-    x_wave=torch.randn(1,1,24000)
+    FS=48000
+    x_len=3*FS
+    x_wave=torch.randn(1,1,x_len)
 
     # instantiate the model
-    encoder=sig2ir_decoder(x_len=24000,z_len=512,N_layers=10)
+    encoder=sig2ir_decoder(x_len=x_len,z_len=128,N_layers=14)
     encoder.to("cpu")
-    summary(encoder,input_size = (1, 24000), batch_size = -1, device="cpu")# torch summary expects 2 dim input for MLP
+    summary(encoder,input_size = (1, x_len), batch_size = -1, device="cpu")# torch summary expects 2 dim input for MLP
     encoder.eval()
     z=encoder(x_wave)
-    print(z.shape)
-
+    print(f"input shape: {x_wave.shape}")
+    print(f"output shape: {z.shape}")
 
