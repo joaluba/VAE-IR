@@ -113,17 +113,18 @@ class DecBlock(nn.Module):
 
         # Decoder block, stage B
         self.B_direct_bn1=nn.BatchNorm1d(hidden_channels)
-        self.B_direct_film1=FiLM(hidden_channels,z_channels)
+        self.B_direct_film1=FiLM(z_channels,hidden_channels)
         self.B_direct_prelu1=nn.PReLU()
         self.B_direct_dilconv1=customConv1d(hidden_channels, hidden_channels, kernel_size=3, dilation=4)
         self.B_direct_bn2=nn.BatchNorm1d(hidden_channels)
-        self.B_direct_film2=FiLM(hidden_channels,z_channels)
+        self.B_direct_film2=FiLM(z_channels,hidden_channels)
         self.B_direct_prelu2=nn.PReLU()
         self.B_direct_dilconv2=customConv1d(hidden_channels, hidden_channels, kernel_size=3, dilation=8)
 
     def concat_noise(self,z):
-        print(z.shape)
         n=torch.randn(z.shape)
+        if torch.cuda.is_available():
+            n=n.to("cuda:0")
         zn = torch.cat((z, n), dim=-1)
         return zn
 
@@ -247,12 +248,15 @@ class FiLM(nn.Module):
         self.beta = nn.Linear(zdim, n_channels)   
 
     def forward(self, x, z):
-        gamma = self.gamma(z).unsqueeze(-1)
-        beta = self.beta(z).unsqueeze(-1)
-        x = gamma * x + beta
+        
+        gamma_shaped = torch.tile(self.gamma(z).permute(0,2,1),(1,1,x.shape[-1]))
+        beta_shaped = torch.tile(self.beta(z).permute(0,2,1),(1,1,x.shape[-1]))
+        assert gamma_shaped.shape==x.shape, f"wrong gamma shape"
+        assert beta_shaped.shape==x.shape, f"wrong beta shape"
+        x = gamma_shaped * x + beta_shaped
+
         return x
     
-
 # --------------------------------------------------------------------------------------------------
 # ----------------------------------------- FULL NETWORK: ------------------------------------------
 # --------------------------------------------------------------------------------------------------
@@ -271,21 +275,24 @@ class sig2ir_encdec(nn.Module):
         self.l_len=l_len #bottleneck embedding
         self.v_len=v_len #input sequence to decoder 
         self.z_len=z_len #conditioning vector
-        self.ir_len # output waveform
+        self.ir_len=ir_len # output waveform
 
         self.encode=sig2ir_encoder(x_len=sig_len, l_len=l_len, N_layers=9)
-        self.decode=sig2ir_decoder(in_channels=1,z_channels=z_len)
-        self.trainable_v = torch.nn.Parameter(torch.randn(v_len)) 
+        self.decode=sig2ir_decoder(in_channels=1,z_len=z_len)
+        self.trainable_v = torch.nn.Parameter(torch.randn(1,1,v_len)) 
+        if torch.cuda.is_available():
+            self.trainable_v.to("cuda:0")
 
     def forward(self,x):
-        l=self.encoder(x)
-        v=self.trainable_v
+        l=self.encode(x)
+        v=self.trainable_v.repeat((x.shape[0],1,1))
         ir=self.decode(v,l)
         return ir
 
 
-# check if the model definitions are correct
+
 if __name__ == "__main__":
+    # ---- check if the model definitions are correct ----
     
     # example input tensor
     FS=48000
@@ -320,7 +327,7 @@ if __name__ == "__main__":
     model=sig2ir_encdec(sig_len=sig_len, l_len=l_len, v_len=v_len, z_len=z_len, ir_len=ir_len)
     model.to("cpu")
     model.eval
-    ir=decoder(x_wave)
+    ir=model(x_wave)
     print(f"encdec input shape: {x_wave.shape}")
     print(f"encdec output shape: {ir.shape}")
 

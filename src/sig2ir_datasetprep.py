@@ -18,11 +18,10 @@ class Dataset_SpeechInSpace(Dataset):
         self.df_audiopool = df_audiopool.sample(n = N_per_ir) # pd data frame with paths to audio files
         self.sr=48e3 # sampling rate
         self.ir_len=2 # crop all the irs to this duration [s]
-        self.sig_len=3 # length of the (reverberant) data point in seconds
+        self.sig_len=2.4 # length of the (reverberant) data point in seconds
         self.preproc="wave" # feature extraction method
         # self.ds_df=self.df_audiopool.merge(self.df_irs, how='cross')
         self.ds_df=self.create_rand_combinations()
-
 
     def __len__(self):
         return len(self.ds_df)
@@ -57,7 +56,6 @@ class Dataset_SpeechInSpace(Dataset):
         # scale data but preserve symmetry
         sig_ir = helpers.standardize_max_abs(sig_ir)
        
-
         if self.preproc=="wave": 
             # store signal as input data point
             data_point=sig_ir.view(1,sig_ir.shape[0],sig_ir.shape[1])
@@ -88,9 +86,10 @@ class Dataset_SpeechInSpace(Dataset):
         return df_ds
         
     
-    def dataset_info(self,nametag):
-        # create dictionary with training parameters
-        train_params={"N_per_ir": self.N_per_ir,
+    def save_dataset_info(self,dir,nametag):
+        # create dictionary with parameters for training data
+        train_params={"N_ir": len(self.df_irs),
+                    "N_per_ir": self.N_per_ir,
                     "sr": self.sr,
                     "ir_len": self.ir_len,
                     "sig_len": self.sig_len,
@@ -101,12 +100,12 @@ class Dataset_SpeechInSpace(Dataset):
         'train_params': train_params
         }
         # Save the combined data as a JSON file
-        with open('ds_info_'+nametag+'.json', 'w') as file:
+        with open(dir+'ds_info_'+nametag+'.json', 'w') as file:
             json.dump(data, file)
-        
- 
-# check if the dataset definition is correct:
+
+
 if __name__ == "__main__":
+    # ---- check if the dataset definition is correct: ----
 
     # Set random seed for NumPy, Pandas, and PyTorch
     seed = 42
@@ -131,7 +130,7 @@ if __name__ == "__main__":
     current_datetime = datetime.now()
     nametag = current_datetime.strftime("%d-%m-%Y_%H-%M")
     # save info about dataset
-    dataset.dataset_info(nametag)
+    dataset.save_dataset_info(nametag)
 
     print("Number of data points:" + str(len(dataset)))
     print("Dimensions of input data:" + str(dataset[20][0].shape))
