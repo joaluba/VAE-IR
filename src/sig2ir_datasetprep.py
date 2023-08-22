@@ -11,14 +11,14 @@ from datetime import datetime
 
 class Dataset_SpeechInSpace(Dataset):
 
-    def __init__(self,df_audiopool,df_irs,N_per_ir=1e4):
+    def __init__(self,df_audiopool,df_irs,sr=48e3, ir_len=int(48e3*2), sig_len=48e3*2.73, N_per_ir=1e4):
 
         self.df_irs = df_irs # pd data frame with info and paths to impulse responses
-        self.N_per_ir = N_per_ir # number of samples per each IR in the data set
-        self.df_audiopool = df_audiopool.sample(n = N_per_ir) # pd data frame with paths to audio files
-        self.sr=48e3 # sampling rate
-        self.ir_len=2 # crop all the irs to this duration [s]
-        self.sig_len=2.4 # length of the (reverberant) data point in seconds
+        self.N_per_ir = int(N_per_ir) # number of samples per each IR in the data set
+        self.df_audiopool = df_audiopool.sample(n = self.N_per_ir) # pd data frame with paths to audio files
+        self.sr=sr # sampling rate
+        self.ir_len=ir_len # crop all the irs to this duration [s]
+        self.sig_len=sig_len # length of the (reverberant) data point in seconds
         self.preproc="wave" # feature extraction method
         # self.ds_df=self.df_audiopool.merge(self.df_irs, how='cross')
         self.ds_df=self.create_rand_combinations()
@@ -34,7 +34,7 @@ class Dataset_SpeechInSpace(Dataset):
         # resample
         ir=torchaudio.transforms.Resample(sr_ir,self.sr)(ir)
         # cut or zero-pad
-        ir=helpers.cut_or_zeropad(ir,self.ir_len*self.sr)
+        ir=helpers.cut_or_zeropad(ir,self.ir_len)
         # scale data but preserve symmetry
         ir=helpers.standardize_max_abs(ir)
         # ---- audio: ----
@@ -43,7 +43,7 @@ class Dataset_SpeechInSpace(Dataset):
         # resample
         sig=torchaudio.transforms.Resample(sr_sig,self.sr)(sig)
         # cut random excerpt or zero-pad 
-        N=int(self.sig_len*self.sr)
+        N=int(self.sig_len)
         sig_rand_excerpt=helpers.cut_or_zeropad_random(sig,N)
         # apply hanning flanks 
         sig_rand_excerpt=helpers.apply_hann_flanks(sig_rand_excerpt,0.5,self.sr)
@@ -59,7 +59,7 @@ class Dataset_SpeechInSpace(Dataset):
         if self.preproc=="wave": 
             # store signal as input data point
             data_point=sig_ir.view(1,sig_ir.shape[0],sig_ir.shape[1])
-            assert data_point.shape==torch.Size([1,1,int(self.sig_len*self.sr)]), f"{data_point.shape=}"
+            assert data_point.shape==torch.Size([1,1,int(self.sig_len)]), f"{data_point.shape=}"
 
         # create label consisting of source audio and room acoustic params, 
         label={
@@ -124,13 +124,14 @@ if __name__ == "__main__":
     df_irs=df_irs.head(10)
 
     # create a tag for dataset info file 
-    dataset=Dataset_SpeechInSpace(df_audiopool,df_irs,N_per_ir=1000)
+    dataset=Dataset_SpeechInSpace(df_audiopool,df_irs,sr=SAMPLING_RATE, ir_len=SAMPLING_RATE*2, 
+                                  sig_len=int(SAMPLING_RATE*2.73), N_per_ir=1e4)
     
     # create a tag for dataset info file
     current_datetime = datetime.now()
     nametag = current_datetime.strftime("%d-%m-%Y_%H-%M")
     # save info about dataset
-    dataset.save_dataset_info(nametag)
+    dataset.save_dataset_info("",nametag)
 
     print("Number of data points:" + str(len(dataset)))
     print("Dimensions of input data:" + str(dataset[20][0].shape))
