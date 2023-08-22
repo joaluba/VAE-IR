@@ -42,7 +42,7 @@ def train_and_test(model, trainloader, valloader, testloader, trainparams, store
         # ----- Training loop for this epoch: -----
         model.train()
         train_loss=0
-        for j,data in tqdm(enumerate(trainloader)):
+        for j,data in tqdm(enumerate(trainloader),total = len(trainloader)):
             # get datapoint
             x_orig = data[0].to(device)
             ir_target=data[1].to(device)
@@ -65,7 +65,7 @@ def train_and_test(model, trainloader, valloader, testloader, trainparams, store
         model.eval() 
         with torch.no_grad():
             val_loss=0
-            for j,data in tqdm(enumerate(valloader)):
+            for j,data in tqdm(enumerate(valloader),total = len(valloader)):
                 # get datapoint
                 x_orig = data[0].to(device)
                 ir_target=data[1].to(device)
@@ -102,7 +102,7 @@ def train_and_test(model, trainloader, valloader, testloader, trainparams, store
     model.eval() 
     with torch.no_grad():
         test_loss=0
-        for j,data in tqdm(enumerate(testloader)):
+        for j,data in tqdm(enumerate(testloader),total = len(testloader)):
             # get datapoint
             x_orig = data[0].to(device)
             ir_target=data[1].to(device)
@@ -139,8 +139,8 @@ if __name__ == "__main__":
     # --------------------- Parameters: ---------------------
 
     DEVICE=torch.device("cuda" if torch.cuda.is_available() else "mps")    
-    LEARNRATE=1e-3
-    N_EPOCHS=10
+    LEARNRATE=1e-4
+    N_EPOCHS=3
     BATCH_SIZE=16
 
     TRAINPARAMS={
@@ -161,6 +161,7 @@ if __name__ == "__main__":
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
+    torch.cuda.empty_cache()
 
     # set up sources of RIRs and audios for dataset
     AUDIO_INFO_FILE = "/home/ubuntu/joanna/VAE-IR/audio_VCTK_datura.csv"
@@ -171,7 +172,9 @@ if __name__ == "__main__":
     df_irs=df_irs.head(10)
 
     # create a tag for dataset info file 
-    dataset=sig2ir_datasetprep.Dataset_SpeechInSpace(df_audiopool,df_irs,N_per_ir=100)
+    dataset=sig2ir_datasetprep.Dataset_SpeechInSpace(df_audiopool,df_irs,sr=FS, ir_len=FS*2, 
+                                  sig_len=SIG_LEN, N_per_ir=1e2)
+    
     # split dataset into training set, test set and validation set
     N_train = round(len(dataset) * 0.5)
     N_rest = len(dataset) - N_train

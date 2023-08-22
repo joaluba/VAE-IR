@@ -43,7 +43,7 @@ if __name__ == "__main__":
     DEVICE=torch.device("cuda" if torch.cuda.is_available() else "mps")    
     LEARNRATE=1e-4
     N_EPOCHS=100
-    BATCH_SIZE=128
+    BATCH_SIZE=16
 
     TRAINPARAMS={
         "num_epochs": N_EPOCHS, 
@@ -71,9 +71,10 @@ if __name__ == "__main__":
     df_audiopool=pd.read_csv(AUDIO_INFO_FILE,index_col=0)
     df_irs=pd.read_csv(IR_INFO_FILE,index_col=0)
     df_irs=df_irs[df_irs["database_ir"]=="arni"]
+    df_irs=df_irs.sample(100)
 
     # create a tag for dataset info file 
-    dataset=sig2ir_datasetprep.Dataset_SpeechInSpace(df_audiopool,df_irs,N_per_ir=1000)
+    dataset=sig2ir_datasetprep.Dataset_SpeechInSpace(df_audiopool,df_irs,sr=FS, ir_len=FS*2, sig_len=int(FS*2.4), N_per_ir=1e4)
     # split dataset into training set, test set and validation set
     N_train = round(len(dataset) * 0.5)
     N_rest = len(dataset) - N_train
