@@ -36,13 +36,14 @@ if __name__ == "__main__":
     V_LEN=400 
     Z_LEN=512*2
     IR_LEN=FS
+    DEVICE=torch.device("cuda" if torch.cuda.is_available() else "mps")    
     
-    model=sig2ir_models.sig2ir_encdec(sig_len=SIG_LEN, l_len=L_LEN, v_len=V_LEN, z_len=Z_LEN, ir_len=IR_LEN)
+    model=sig2ir_models.sig2ir_encdec(sig_len=SIG_LEN, l_len=L_LEN, v_len=V_LEN, z_len=Z_LEN, ir_len=IR_LEN,device=DEVICE)
 
     # --------------------- Parameters: ---------------------
-    DEVICE=torch.device("cuda" if torch.cuda.is_available() else "mps")    
+
     LEARNRATE=1e-4
-    N_EPOCHS=100
+    N_EPOCHS=10
     BATCH_SIZE=16
 
     TRAINPARAMS={
@@ -70,11 +71,11 @@ if __name__ == "__main__":
 
     df_audiopool=pd.read_csv(AUDIO_INFO_FILE,index_col=0)
     df_irs=pd.read_csv(IR_INFO_FILE,index_col=0)
-    df_irs=df_irs[df_irs["database_ir"]=="arni"]
-    df_irs=df_irs.sample(100)
+    # df_irs=df_irs[df_irs["database_ir"]=="arni"]
+    # df_irs=df_irs.sample(10)
 
     # create a tag for dataset info file 
-    dataset=sig2ir_datasetprep.Dataset_SpeechInSpace(df_audiopool,df_irs,sr=FS, ir_len=FS*2, sig_len=int(FS*2.4), N_per_ir=1e4)
+    dataset=sig2ir_datasetprep.Dataset_SpeechInSpace(df_audiopool,df_irs,sr=FS, ir_len=FS*2, sig_len=SIG_LEN, N_per_ir=1e2)
     # split dataset into training set, test set and validation set
     N_train = round(len(dataset) * 0.5)
     N_rest = len(dataset) - N_train

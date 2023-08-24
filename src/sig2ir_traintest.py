@@ -133,12 +133,13 @@ if __name__ == "__main__":
     V_LEN=400 
     Z_LEN=512*2
     IR_LEN=FS
+    DEVICE=torch.device("cuda" if torch.cuda.is_available() else "mps")    
     
-    model=sig2ir_models.sig2ir_encdec(sig_len=SIG_LEN, l_len=L_LEN, v_len=V_LEN, z_len=Z_LEN, ir_len=IR_LEN)
+    model=sig2ir_models.sig2ir_encdec(sig_len=SIG_LEN, l_len=L_LEN, v_len=V_LEN, z_len=Z_LEN, ir_len=IR_LEN,device=DEVICE)
 
     # --------------------- Parameters: ---------------------
 
-    DEVICE=torch.device("cuda" if torch.cuda.is_available() else "mps")    
+
     LEARNRATE=1e-4
     N_EPOCHS=3
     BATCH_SIZE=16

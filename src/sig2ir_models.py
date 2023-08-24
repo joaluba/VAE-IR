@@ -90,13 +90,15 @@ class DecBlock(nn.Module):
                  in_channels,
                  hidden_channels,
                  z_channels,
-                 upsample_factor):
+                 upsample_factor,
+                 device):
         super().__init__()
 
         self.in_channels = in_channels
         self.hidden_channels = hidden_channels
         self.z_channels = z_channels
         self.upsample_factor = upsample_factor
+        self.device=device
 
         # Decoder block, stage A
         self.A_direct_bn1=nn.BatchNorm1d(in_channels)
@@ -122,9 +124,7 @@ class DecBlock(nn.Module):
         self.B_direct_dilconv2=customConv1d(hidden_channels, hidden_channels, kernel_size=3, dilation=8)
 
     def concat_noise(self,z):
-        n=torch.randn(z.shape)
-        if torch.cuda.is_available():
-            n=n.to("cuda:0")
+        n=torch.randn(z.shape).to(self.device)
         zn = torch.cat((z, n), dim=-1)
         return zn
 
@@ -162,21 +162,23 @@ class sig2ir_decoder(nn.Module):
     # -------- Decoder: --------
     def __init__(self,
                  in_channels=567,
-                 z_len=128):
+                 z_len=128,
+                 device="cpu"):
         super().__init__()
 
         self.in_channels = in_channels
         self.z_channels = z_len
+        self.device = device
 
         self.preprocess = customConv1d(in_channels, 768, kernel_size=3)
         self.gblocks = nn.ModuleList ([
-            DecBlock(768, 768, z_len, 1),
-            DecBlock(768, 768, z_len, 1),
-            DecBlock(768, 384, z_len, 2),
-            DecBlock(384, 384, z_len, 2),
-            DecBlock(384, 384, z_len, 2),
-            DecBlock(384, 192, z_len, 3),
-            DecBlock(192, 96, z_len, 5)
+            DecBlock(768, 768, z_len, 1,self.device),
+            DecBlock(768, 768, z_len, 1,self.device),
+            DecBlock(768, 384, z_len, 2,self.device),
+            DecBlock(384, 384, z_len, 2,self.device),
+            DecBlock(384, 384, z_len, 2,self.device),
+            DecBlock(384, 192, z_len, 3,self.device),
+            DecBlock(192, 96, z_len, 5,self.device)
         ])
         self.postprocess = nn.Sequential(
             customConv1d(96, 1, kernel_size=3),
@@ -249,8 +251,10 @@ class FiLM(nn.Module):
 
     def forward(self, x, z):
         
-        gamma_shaped = torch.tile(self.gamma(z).permute(0,2,1),(1,1,x.shape[-1]))
-        beta_shaped = torch.tile(self.beta(z).permute(0,2,1),(1,1,x.shape[-1]))
+        # gamma_shaped = torch.tile(self.gamma(z).permute(0,2,1),(1,1,x.shape[-1]))
+        # beta_shaped = torch.tile(self.beta(z).permute(0,2,1),(1,1,x.shape[-1]))
+        gamma_shaped=self.gamma(z).permute(0,2,1).repeat(1,1,x.shape[-1])
+        beta_shaped=self.beta(z).permute(0,2,1).repeat(1,1,x.shape[-1])
         assert gamma_shaped.shape==x.shape, f"wrong gamma shape"
         assert beta_shaped.shape==x.shape, f"wrong beta shape"
         x = gamma_shaped * x + beta_shaped
@@ -262,13 +266,14 @@ class FiLM(nn.Module):
 # --------------------------------------------------------------------------------------------------
 
 class sig2ir_encdec(nn.Module):
-    # -------- Decoder: --------
+    # -------- Encoder-Decoder: --------
     def __init__(self, 
                  sig_len=int(48000*2.4), 
                  l_len=128, 
                  v_len=400, 
                  z_len=128*2, 
-                 ir_len=48000):
+                 ir_len=48000,
+                 device="cpu"):
         super().__init__()
 
         self.sig_len=sig_len #input waveform
@@ -276,12 +281,11 @@ class sig2ir_encdec(nn.Module):
         self.v_len=v_len #input sequence to decoder 
         self.z_len=z_len #conditioning vector
         self.ir_len=ir_len # output waveform
+        self.device=device
 
         self.encode=sig2ir_encoder(x_len=sig_len, l_len=l_len, N_layers=9)
-        self.decode=sig2ir_decoder(in_channels=1,z_len=z_len)
-        self.trainable_v = torch.nn.Parameter(torch.randn(1,1,v_len)) 
-        if torch.cuda.is_available():
-            self.trainable_v.to("cuda:0")
+        self.decode=sig2ir_decoder(in_channels=1,z_len=z_len,device=self.device)
+        self.trainable_v = torch.nn.Parameter(torch.randn(1,1,v_len)).to(self.device)
 
     def forward(self,x):
         l=self.encode(x)
@@ -319,7 +323,6 @@ if __name__ == "__main__":
     decoder.eval()
     v=torch.nn.Parameter(torch.randn(1,1,v_len)) 
     y=decoder(v,l)
-
     print(f"decoder input shape: {l.shape}")
     print(f"output shape: {y.shape}")
 
