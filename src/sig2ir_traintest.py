@@ -141,7 +141,7 @@ if __name__ == "__main__":
 
 
     LEARNRATE=1e-4
-    N_EPOCHS=3
+    N_EPOCHS=4
     BATCH_SIZE=16
 
     TRAINPARAMS={
@@ -174,7 +174,7 @@ if __name__ == "__main__":
 
     # create a tag for dataset info file 
     dataset=sig2ir_datasetprep.Dataset_SpeechInSpace(df_audiopool,df_irs,sr=FS, ir_len=FS*2, 
-                                  sig_len=SIG_LEN, N_per_ir=1e2)
+                                  sig_len=SIG_LEN, N_per_ir=1e1)
     
     # split dataset into training set, test set and validation set
     N_train = round(len(dataset) * 0.5)

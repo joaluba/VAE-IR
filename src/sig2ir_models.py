@@ -285,11 +285,11 @@ class sig2ir_encdec(nn.Module):
 
         self.encode=sig2ir_encoder(x_len=sig_len, l_len=l_len, N_layers=9)
         self.decode=sig2ir_decoder(in_channels=1,z_len=z_len,device=self.device)
-        self.trainable_v = torch.nn.Parameter(torch.randn(1,1,v_len)).to(self.device)
+        self.trainable_v = nn.Parameter(torch.randn(1,1,v_len),requires_grad=True)
 
     def forward(self,x):
         l=self.encode(x)
-        v=self.trainable_v.repeat((x.shape[0],1,1))
+        v=self.trainable_v.repeat((x.shape[0],1,1)).to(self.device)
         ir=self.decode(v,l)
         return ir
 
@@ -327,10 +327,11 @@ if __name__ == "__main__":
     print(f"output shape: {y.shape}")
 
     # check enc-dec
-    model=sig2ir_encdec(sig_len=sig_len, l_len=l_len, v_len=v_len, z_len=z_len, ir_len=ir_len)
+    model=sig2ir_encdec(sig_len=sig_len, l_len=l_len, v_len=v_len, z_len=z_len, ir_len=ir_len,device="cpu")
     model.to("cpu")
     model.eval
     ir=model(x_wave)
     print(f"encdec input shape: {x_wave.shape}")
     print(f"encdec output shape: {ir.shape}")
+
 
